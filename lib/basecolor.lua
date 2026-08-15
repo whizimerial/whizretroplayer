@@ -1,51 +1,56 @@
--- Table to store custom tints globally so fakethreed.lua can read it
+-- Table to store custom tints globally in memory so fakethreed.lua can read it instantly
 player_tint = {}
 
--- Map of Luanti dye names to Hex Colors
-local DYE_COLORS = {
-    ["dye:white"]      = "#FFFFFF",
-    ["dye:grey"]       = "#808080",
-    ["dye:dark_grey"]  = "#404040",
-    ["dye:black"]      = "#111111",
-    ["dye:violet"]     = "#800080",
-    ["dye:blue"]       = "#0000FF",
-    ["dye:cyan"]       = "#00FFFF",
-    ["dye:dark_green"] = "#006400",
-    ["dye:green"]      = "#00FF00",
-    ["dye:yellow"]     = "#FFFF00",
-    ["dye:brown"]      = "#A52A2A",
-    ["dye:orange"]     = "#FFA500",
-    ["dye:red"]        = "#FF0000",
-    ["dye:magenta"]    = "#FF00FF",
-    ["dye:pink"]       = "#FFC0CB",
-}
+-- Helper function to load tint data from mod storage when a player joins or server starts
+local mod_storage = minetest.get_mod_storage()
 
--- Inventory interaction detector: triggers when moving items
-minetest.register_on_player_inventory_action(function(player, action, inventory, inventory_info)
-    if action == "move" and inventory_info.from_list and inventory_info.to_list then
-        local inv = player:get_inventory()
-        if not inv then return end
+local function load_player_tint(pname)
+    local saved_color = mod_storage:get_string("tint_" .. pname)
+    if saved_color and saved_color ~= "" then
+        player_tint[pname] = saved_color
+    end
+end
 
-        local from_list = inv:get_list(inventory_info.from_list)
-        if from_list then
-            local moved_stack = from_list[inventory_info.from_index]
-            if moved_stack then
-                local moved_item = moved_stack:get_name()
-                local moved_color = DYE_COLORS[moved_item]
+-- Load tints for players already online (e.g. on reload) and when they join
+minetest.register_on_joinplayer(function(player)
+    load_player_tint(player:get_player_name())
+end)
 
-                -- If the moved item is a dye, update the player's tint immediately!
-                if moved_color then
-                    local pname = player:get_player_name()
-                    player_tint[pname] = moved_color
-                    minetest.chat_send_player(pname, "Tint updated to " .. moved_item)
-                end
+-- Register the /color chat command
+minetest.register_chatcommand("color", {
+    params = "<rrggbb>",
+    description = "Set your custom player tint using a hex code (e.g. /color FF0000)",
+    privs = {interact = true},
+    func = function(name, param)
+        -- Clean up string (trim spaces)
+        param = param:trim()
+        
+        if param == "" then
+            local current = player_tint[name]
+            if current then
+                return true, "Your current tint is: " .. current
+            else
+                return false, "Usage: /color <rrggbb> (e.g., /color FF0000 or /color #FF0000)"
             end
         end
-    end
-end)
 
--- Cleanup when player leaves
-minetest.register_on_leaveplayer(function(player)
-    local pname = player:get_player_name()
-    player_tint[pname] = nil
-end)
+        -- Ensure it starts with '#' properly using concatenation (..)
+        if not param:find("^#") then
+            param = "#" .. param
+        end
+        param = "#" .. param:gsub("^#+", "")
+
+        -- Validate Hex format (#RRGGBB)
+        if not param:match("^#%x%x%x%x%x%x$") then
+            return false, "Invalid color format! Please use a 6-digit hex code, e.g., /color FF0000"
+        end
+
+        -- Save to global table for fakethreed.lua
+        player_tint[name] = param
+
+        -- Save permanently to Mod Storage (persists through leaving and server restarts)
+        mod_storage:set_string("tint_" .. name, param)
+
+        return true, "Tint successfully updated to " .. param
+    end,
+})
