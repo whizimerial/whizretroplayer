@@ -6,24 +6,16 @@ sprite_lib.anim_timer = sprite_lib.anim_timer or {}
 sprite_lib.current_frame = sprite_lib.current_frame or {}
 sprite_lib.animation_overrides = sprite_lib.animation_overrides or {}
 
--- Helper to check if a texture asset exists, falling back to blank.png
 local function get_safe_texture(texture_name)
     if minetest.registered_items[texture_name] or minetest.simplistic_texture_check and minetest.simplistic_texture_check(texture_name) then
         return texture_name
     end
-    -- Minetest engine handles texture lookup; using a simple check via texture loading or fallback string
-    -- If the file doesn't load, Minetest logs a warning, but we can safely supply blank.png if we want a hard programmatic safeguard:
     return texture_name
 end
 
--- Fallback wrapper using a dummy check or direct string construction with fallback fallback
 local function resolve_texture(base, overlay)
-    -- If you want absolute safety against missing files crashing visual rendering:
     local base_tex = base
     local overlay_tex = overlay
-    
-    -- Minetest natively handles missing texture strings by showing a default missing texture, 
-    -- but we can explicitly use blank.png if desired. Let's construct safely:
     return string.format("%s^(%s^[colorize:%s:120)", base_tex, overlay_tex, hex or "#00FF00")
 end
 
@@ -73,7 +65,6 @@ minetest.register_entity(MOD_NAME .. ":sprite_display", {
 
         local action_name, max_frames, anim_speed = sprite_lib.get_current_animation(pname, is_moving, is_using)
 
-        -- Frame progression loop timer
         sprite_lib.anim_timer[pname] = (sprite_lib.anim_timer[pname] or 0) + dtime
         if sprite_lib.anim_timer[pname] > anim_speed then
             sprite_lib.anim_timer[pname] = 0
@@ -86,9 +77,6 @@ minetest.register_entity(MOD_NAME .. ":sprite_display", {
         local base_texture = string.format("%s_%s_%s_%d.png", dir_name, face_type, action_name, frame_num)
         local overlay_texture = string.format("%s_%s_%s_%d_clothes.png", dir_name, face_type, action_name, frame_num)
 
-        -- Fallback check: if texture files don't exist, fallback to blank.png
-        -- In Minetest, we can specify fallback operators or check file existence using io streams if server-side, 
-        -- but standard practice for missing image layers is passing blank.png.
         local final_base = base_texture
         local final_overlay = overlay_texture
 
